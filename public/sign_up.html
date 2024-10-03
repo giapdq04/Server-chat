@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sign Up Form</title>
+  <style>
+    /* CSS để định dạng các phần tử theo chiều dọc */
+    #nameForm {
+      display: flex;
+      flex-direction: column;
+      width: 200px; /* Đặt chiều rộng cho biểu mẫu */
+      margin: auto; /* Căn giữa biểu mẫu */
+    }
+    #nameForm input, #nameForm button {
+      margin-bottom: 10px; /* Khoảng cách giữa các phần tử */
+    }
+  </style>
+</head>
+<body>
+  <form id="nameForm">
+    <input id="nameInput" autocomplete="off" placeholder="Nhập tên người dùng" />
+    <input id="passwordInput" type="password" autocomplete="off" placeholder="Nhập mật khẩu" />
+    <button>Đăng ký</button>
+  </form>
+  <script src="./javascripts/sign_up.js"></script>
+</body>
+</html>

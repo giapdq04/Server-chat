@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat</title>
+    <style>
+        #messages {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #messages>li {
+            padding: 0.5rem 1rem;
+        }
+
+        #messages>li:nth-child(odd) {
+            background: #efefef;
+        }
+    </style>
+</head>
+<body>
+    <ul id="messages"></ul>
+    <form id="form">
+        <input id="input" autocomplete="off" placeholder="Enter message" /><button>Send</button>
+    </form>
+    <div id="typing"></div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const socket = io();
+            const messages = document.getElementById('messages');
+            const form = document.getElementById('form');
+            const input = document.getElementById('input');
+            const typing = document.getElementById('typing');
+            let socketId = '';
+            const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+            const userName = currentUser.username;
+
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                if (input.value) {
+                    socket.emit('chat message', { message: input.value, name: userName });
+                    input.value = '';
+                }
+            });
+
+            socket.on('connect', function() {
+                socketId = socket.id;
+            });
+
+            socket.on('chat message', function(data) {
+                const item = document.createElement('li');
+                item.textContent = data.name + ': ' + data.message;
+                messages.appendChild(item);
+                window.scrollTo(0, document.body.scrollHeight);
+            });
+
+            socket.on('typing', function(data) {
+                if (data.socketId !== socketId) { // Check if the typing event is from another user
+                    typing.textContent = data.name + ' is typing...';
+                    setTimeout(() => {
+                        typing.textContent = '';
+                    }, 1000);
+                }
+            });
+
+            // Fetch initial messages
+            const urlParams = new URLSearchParams(window.location.search);
+            const userId = urlParams.get('userId');
+
+            fetch(`/api/layTinNhan?id1=${currentUser._id}&id2=${userId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 200) {
+                        data.messages.messages.forEach(message => {
+                            const item = document.createElement('li');
+                            item.textContent = message.senderId === currentUser._id ? 'You: ' + message.content : message.senderId + ': ' + message.content;
+                            messages.appendChild(item);
+                        });
+                        window.scrollTo(0, document.body.scrollHeight);
+                    } else {
+                        alert('Không thể tải tin nhắn: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Đã xảy ra lỗi khi tải tin nhắn');
+                });
+        });
+    </script>
+</body>
+</html>
