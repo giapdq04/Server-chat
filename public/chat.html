@@ -1,10 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat</title>
     <style>
+        body {
+            margin: 0;
+            padding-bottom: 3rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        #form {
+            background: rgba(0, 0, 0, 0.15);
+            padding: 0.25rem;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            height: 3rem;
+            box-sizing: border-box;
+            backdrop-filter: blur(10px);
+        }
+
+        #input {
+            border: none;
+            padding: 0 1rem;
+            flex-grow: 1;
+            border-radius: 2rem;
+            margin: 0.25rem;
+        }
+
+        #input:focus {
+            outline: none;
+        }
+
+        #form>button {
+            background: #333;
+            border: none;
+            padding: 0 1rem;
+            margin: 0.25rem;
+            border-radius: 3px;
+            outline: none;
+            color: #fff;
+        }
+
         #messages {
             list-style-type: none;
             margin: 0;
@@ -20,75 +62,106 @@
         }
     </style>
 </head>
+
 <body>
     <ul id="messages"></ul>
-    <form id="form">
-        <input id="input" autocomplete="off" placeholder="Enter message" /><button>Send</button>
+    <form id="form" action="">
+        <input id="input" autocomplete="off" /><button>Send</button>
     </form>
-    <div id="typing"></div>
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const socket = io();
-            const messages = document.getElementById('messages');
-            const form = document.getElementById('form');
-            const input = document.getElementById('input');
-            const typing = document.getElementById('typing');
-            let socketId = '';
-            const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-            const userName = currentUser.username;
+</body>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    var socket = io();
+    var messages = document.getElementById('messages');
+    var form = document.getElementById('form');
+    var input = document.getElementById('input');
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
 
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
-                if (input.value) {
-                    socket.emit('chat message', { message: input.value, name: userName });
-                    input.value = '';
-                }
-            });
+    // Lấy userId từ URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const id2 = urlParams.get('userId');
 
-            socket.on('connect', function() {
-                socketId = socket.id;
-            });
+    socket.on('connect', function () {
+        console.log('Da ket noi');
+    });
 
-            socket.on('chat message', function(data) {
-                const item = document.createElement('li');
-                item.textContent = data.name + ': ' + data.message;
-                messages.appendChild(item);
-                window.scrollTo(0, document.body.scrollHeight);
-            });
-
-            socket.on('typing', function(data) {
-                if (data.socketId !== socketId) { // Check if the typing event is from another user
-                    typing.textContent = data.name + ' is typing...';
-                    setTimeout(() => {
-                        typing.textContent = '';
-                    }, 1000);
-                }
-            });
-
-            // Fetch initial messages
-            const urlParams = new URLSearchParams(window.location.search);
-            const userId = urlParams.get('userId');
-
-            fetch(`/api/layTinNhan?id1=${currentUser._id}&id2=${userId}`)
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (input.value) {
+            fetch('/api/guiTinNhan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    id1: currentUser._id,
+                    id2: id2,
+                    senderId: currentUser._id,
+                    content: input.value
+                })
+            })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 200) {
-                        data.messages.messages.forEach(message => {
-                            const item = document.createElement('li');
-                            item.textContent = message.senderId === currentUser._id ? 'You: ' + message.content : message.senderId + ': ' + message.content;
-                            messages.appendChild(item);
-                        });
-                        window.scrollTo(0, document.body.scrollHeight);
+                        input.value = '';
                     } else {
-                        alert('Không thể tải tin nhắn: ' + data.message);
+                        alert('Lỗi khi gửi tin nhắn: ' + data.message);
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    alert('Đã xảy ra lỗi khi tải tin nhắn');
+                    console.error('There was a problem with the fetch operation:', error);
+                    alert('Đã xảy ra lỗi khi gửi tin nhắn: ' + error.message);
                 });
+        }
+    });
+
+    socket.on('chat message', function (data) {
+        var item = document.createElement('li');
+        fetch(`/api/layThongTinUser?userId=${data.senderId}`)
+            .then(response => response.json())
+            .then(userData => {
+                item.textContent = userData.user.username + ': ' + data.content;
+                messages.appendChild(item);
+                window.scrollTo(0, document.body.scrollHeight);
+            })
+            .catch(error => {
+                console.error('There was a problem with the fetch operation:', error);
+                alert('Đã xảy ra lỗi khi tải tin nhắn: ' + error.message);
+            });
+    });
+
+    fetch(`/api/layTinNhan?id1=${currentUser._id}&id2=${id2}`)
+        .then(response => response.json())
+        .then(data => {
+            // Sắp xếp tin nhắn theo thời gian được gửi
+            data.messages.messages.sort((a, b) => new Date(a.sentAt) - new Date(b.sentAt));
+
+            // Tạo một mảng các promises để đảm bảo các yêu cầu fetch hoàn thành theo thứ tự
+            const promises = data.messages.messages.map(message => {
+                return fetch(`/api/layThongTinUser?userId=${message.senderId}`)
+                    .then(response => response.json())
+                    .then(userData => {
+                        return {
+                            username: userData.user.username,
+                            content: message.content
+                        };
+                    });
+            });
+
+            // Đợi tất cả các promises hoàn thành
+            Promise.all(promises).then(results => {
+                results.forEach(result => {
+                    var item = document.createElement('li');
+                    item.textContent = result.username + ': ' + result.content;
+                    messages.appendChild(item);
+                });
+                window.scrollTo(0, document.body.scrollHeight);
+            });
+        })
+        .catch(error => {
+            console.error('There was a problem with the fetch operation:', error);
+            alert('Đã xảy ra lỗi khi tải tin nhắn: ' + error.message);
         });
-    </script>
-</body>
+</script>
+
 </html>
